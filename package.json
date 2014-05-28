@@ -1,0 +1,18 @@
+{
+  "name": "export-tool",
+  "version": "0.0.1",
+  "main": "index.html",
+  "dependencies": {
+    "mysql": "~2.3.0",
+    "async": "~0.9.0",
+    "node-xlsx": "~0.4.0"
+  },
+  "window": {
+    "toolbar": false,
+    "frame": false,
+    "show": false,
+    "width": 400,
+    "height": 600,
+    "resizable": false
+  }
+}
