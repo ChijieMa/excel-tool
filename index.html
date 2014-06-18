@@ -15,43 +15,56 @@
     </div>
   </div>
   <div style="margin-top: 32px;">
-    <table>
-      <tr>
-        <td>MYSQL数据库主机</td>
-        <td><input type="text" name="host" id="host"></td>
-      </tr>
-      <tr>
-        <td>MYSQL数据库端口</td>
-        <td><input type="text" name="port" id="port"></td>
-      </tr>
-      <tr>
-        <td>MYSQL数据库账号</td>
-        <td><input type="text" name="user" id="user"></td>
-      </tr>
-      <tr>
-        <td>MYSQL数据库密码</td>
-        <td><input type="password" name="passwd" id="passwd"></td>
-      </tr>
-      <tr>
-        <td>MYSQL数据库库名</td>
-        <td><input type="text" name="dbname" id="dbname"></td>
-      </tr>
-      <tr>
-        <td>EXCEL目录</td>
-        <td>
-          <a class="btn btn-primary" onclick="$('input[id=excel-path]').click()">选择目录</a>
-          <input id="excel-path" onchange="loadExcelPath()" style="display:none" type="file" nwdirectory>
-          <input type="hidden" name="excel" id="excel">
-        </td>
-      </tr>
-      <tr>
-        <td></td>
-        <td>
-          <input id="exportExcel" type="button" value="导出EXCEL" onclick="exportExcel()">
-          <input id="importExcel" type="button" value="导入EXCEL" onclick="importExcel()">
-        </td>
-      </tr>
-    </table>
+    <div>
+      <div style="float: left; width: 400px;">
+        <table>
+          <tr>
+            <td>MYSQL数据库主机</td>
+            <td><input type="text" name="host" id="host"></td>
+          </tr>
+          <tr>
+            <td>MYSQL数据库端口</td>
+            <td><input type="text" name="port" id="port"></td>
+          </tr>
+          <tr>
+            <td>MYSQL数据库账号</td>
+            <td><input type="text" name="user" id="user"></td>
+          </tr>
+          <tr>
+            <td>MYSQL数据库密码</td>
+            <td><input type="password" name="passwd" id="passwd"></td>
+          </tr>
+          <tr>
+            <td>MYSQL数据库库名</td>
+            <td><input type="text" name="dbname" id="dbname"></td>
+          </tr>
+          <tr>
+            <td>EXCEL目录</td>
+            <td>
+              <a class="btn btn-primary" onclick="$('input[id=excel-path]').click()">选择目录</a>
+              <input id="excel-path" onchange="loadExcelPath()" style="display:none" type="file" nwdirectory>
+              <input type="hidden" name="excel" id="excel">
+            </td>
+          </tr>
+          <tr>
+            <td></td>
+            <td>
+              <input id="exportExcel" type="button" value="导出EXCEL" onclick="exportExcel()">
+              <input id="importExcel" type="button" value="导入EXCEL" onclick="importExcel()">
+            </td>
+          </tr>
+        </table>
+      </div>
+      <div style="float: left; width: 380px;">
+        <p>数据表 <input id="updateTab" type="button" value="更新数据表" onclick="updateTab()"></p>
+        <div style="width: 380px; height: 175px; border: 1px solid #ccc; overflow: hidden;">
+          <div id="tbs" style="width: 385px; height: 175px; overflow: auto; overflow-x: hidden;">
+
+          </div>
+        </div>
+      </div>
+      <div style="clear: left;"></div>
+    </div>
     <div id="errMsg" class="errMsg">
     </div>
     <div id="msg" class="msg">

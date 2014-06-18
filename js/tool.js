@@ -13,6 +13,7 @@ var path = require('path');
 var xlsx = require('node-xlsx');
 var configFile = path.join(path.dirname(process.execPath), 'config.json');
 var host, port, user, passwd, dbname, excel, prefix, connection;
+var checkedArr = [];
 
 var loadExcelPath = function() {
   var excelPath = $("#excel-path")[0].files[0].path;
@@ -29,7 +30,8 @@ function msg(type, msg) {
   }
 }
 
-function checkInput() {
+function checkInput(excelAble) {
+  excelAble = excelAble || false;
   host = $("#host").val();
   port = $("#port").val();
   user = $("#user").val();
@@ -58,21 +60,30 @@ function checkInput() {
     msg(1, "MYSQL数据库库名不能为空!");
     return false;
   }
-  if (excel.length <= 0) {
+  if (!excelAble && excel.length <= 0) {
     msg(1, "请先指定EXCEL目录!");
     return false;
   }
 
-  if (!fs.existsSync(excel)) {
+  if (!excelAble && !fs.existsSync(excel)) {
     msg(1, "EXCEL目录不存在！");
     return false;
   }
 
-  if (!fs.statSync(excel).isDirectory()) {
+  if (!excelAble && !fs.statSync(excel).isDirectory()) {
     msg(1, "EXCEL目录不是目录！");
     return false;
   }
   return true;
+}
+
+function checkedList() {
+  checkedArr = [];
+  $("#tbs :checkbox").each(function() {
+    if ($(this).is(":checked")) {
+      checkedArr.push($(this).val());
+    }
+  });
 }
 
 function connectDb() {
@@ -89,6 +100,7 @@ var importExcel = function() {
   if (!checkInput()) {
     return false;
   }
+  checkedList();
 
   connectDb();
 
@@ -112,6 +124,12 @@ var importExcel = function() {
           return;
         }
         var tabname = file.substring(0, lid);
+
+        if (checkedArr.length > 0 && checkedArr.indexOf(tabname) === -1) {
+          callback(null);
+          return;
+        }
+
         async.waterfall([
           function(cbk) {
             connection.query("truncate table " + tabname, function(err) {
@@ -130,6 +148,10 @@ var importExcel = function() {
             dataArr.shift();
             //删除第一行注释
             var keys = dataArr.shift();
+            if (dataArr.length <= 0) {
+              cbk(null);
+              return;
+            }
             var keyArr = [];
             keyLen = keys.length;
             for (i = 0; i < keyLen; i++) {
@@ -139,7 +161,9 @@ var importExcel = function() {
             async.each(dataArr, function(data, callbk) {
               valArr = [];
               for (i = 0; i < keyLen; i++) {
-                valArr.push(data[i].value);
+                if (data[i]) {
+                  valArr.push(data[i].value);
+                }
               }
               var field = "`" + keyArr.join('`,`') + "`";
               var val = "'" + valArr.join("','") + "'";
@@ -174,6 +198,7 @@ var exportExcel = function() {
     return false;
   }
 
+  checkedList();
   connectDb();
 
   async.waterfall([
@@ -197,6 +222,12 @@ var exportExcel = function() {
           callback(null);
           return;
         }
+
+        if (checkedArr.length > 0 && checkedArr.indexOf(tblName) === -1) {
+          callback(null);
+          return;
+        }
+
         var sqlArr = [
           "select COLUMN_NAME,COLUMN_COMMENT from information_schema.columns where" +
             " table_schema='" + dbname + "' and table_name='" + tblName + "' order by ORDINAL_POSITION asc",
@@ -263,6 +294,57 @@ var exportExcel = function() {
   });
 };
 
+
+function updateTab() {
+  if (!checkInput(true)) {
+    return false;
+  }
+
+  connectDb();
+
+  var tabArr = [];
+
+  async.waterfall([
+    function(cb) {
+      $("#updateTab").attr('disabled', 'true');
+      connection.connect(cb);
+    },
+    function(conInfo, cb) {
+      var sql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA='" + dbname + "'";
+      connection.query(sql, function(err, rows) {
+        if (err) {
+          cb(err);
+          return;
+        }
+        cb(null, rows);
+      });
+    },
+    function (tbls, cb) {
+      async.each(tbls, function(tbl, callback) {
+        var tblName = tbl.TABLE_NAME;
+        if (prefix && tblName.indexOf(prefix) !== 0) {
+          callback(null);
+          return;
+        }
+        tabArr.push(tblName);
+        callback(null);
+      }, cb);
+    }
+  ], function(err) {
+    connection.end();
+    $("#updateTab").removeAttr('disabled');
+    if (err) {
+      $("#tbs").html(err);
+      return;
+    }
+    var tbsHtml = '';
+    tabArr.forEach(function(tab) {
+      tbsHtml += "<p><input type='checkbox'value='" + tab + "'>" + tab + "</p>";
+    });
+    $('#tbs').html(tbsHtml);
+  });
+}
+
 $(document).ready(function(){
   $("#closeButton").mouseover(function() {
     $(this).attr("src","./img/close_hover.png");
@@ -284,6 +366,7 @@ $(document).ready(function(){
     $('#passwd').val(config.passwd);
     $('#dbname').val(config.dbname);
     prefix = config.prefix;
+    updateTab();
   }
 
   win.show();
