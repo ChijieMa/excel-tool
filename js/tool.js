@@ -176,7 +176,8 @@ var importExcel = function() {
               valArr = [];
               for (i = 0; i < keyLen; i++) {
                 if (data[i]) {
-                  valArr.push(data[i].value === null ? '' : data[i].value);
+                  var t = isNull(data[i].value) ? '' : data[i].value;
+                  valArr.push(t);
                 } else {
                   valArr.push('');
                 }
@@ -337,6 +338,10 @@ function dateFormat(date, format) {
     }
   }
   return format;
+}
+
+function isNull(arg1){
+  return !arg1 && arg1!==0 && typeof arg1!=="boolean"?true:false;
 }
 
 
