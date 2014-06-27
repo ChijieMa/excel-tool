@@ -12,7 +12,7 @@ var async = require('async');
 var path = require('path');
 var xlsx = require('node-xlsx');
 var configFile = path.join(path.dirname(process.execPath), 'config.json');
-var host, port, user, passwd, dbname, excel, prefix, connection;
+var host, port, user, passwd, dbname, excel, tabPre, dbPre, connection;
 var checkedArr = [];
 
 var loadExcelPath = function() {
@@ -30,8 +30,8 @@ function msg(type, msg) {
   }
 }
 
-function checkInput(excelAble) {
-  excelAble = excelAble || false;
+function checkInput(opts) {
+  opts = opts || {};
   host = $("#host").val();
   port = $("#port").val();
   user = $("#user").val();
@@ -56,21 +56,21 @@ function checkInput(excelAble) {
     msg(1, "MYSQL数据库密码不能为空!");
     return false;
   }
-  if (dbname.length <= 0) {
+  if (!opts.dbname && dbname.length <= 0) {
     msg(1, "MYSQL数据库库名不能为空!");
     return false;
   }
-  if (!excelAble && excel.length <= 0) {
+  if (!opts.excel && excel.length <= 0) {
     msg(1, "请先指定EXCEL目录!");
     return false;
   }
 
-  if (!excelAble && !fs.existsSync(excel)) {
+  if (!opts.excel && !fs.existsSync(excel)) {
     msg(1, "EXCEL目录不存在！");
     return false;
   }
 
-  if (!excelAble && !fs.statSync(excel).isDirectory()) {
+  if (!opts.excel && !fs.statSync(excel).isDirectory()) {
     msg(1, "EXCEL目录不是目录！");
     return false;
   }
@@ -104,6 +104,8 @@ var importExcel = function() {
 
   connectDb();
 
+  var backExcelPath;
+
   async.waterfall([
     function(cb) {
       msg(2, "正在执行...");
@@ -111,11 +113,20 @@ var importExcel = function() {
       connection.connect(cb);
     },
     function(conInfo, cb) {
+      var d = dateFormat(new Date(), 'yyyyMMddhhmmss');
+      backExcelPath = path.join(path.dirname(process.execPath), d);
+      fs.exists(backExcelPath, function(exists) {
+        if (!exists) {
+          fs.mkdir(backExcelPath, cb);
+        }
+      });
+    },
+    function(cb) {
       fs.readdir(excel, cb);
     },
     function(files, cb) {
       async.each(files, function(file, callback) {
-        if (prefix && file.indexOf(prefix) !== 0) {
+        if (tabPre && file.indexOf(tabPre) !== 0) {
           callback(null);
           return;
         }
@@ -131,6 +142,9 @@ var importExcel = function() {
         }
 
         async.waterfall([
+          function(cbk) {
+            exportSingleExcel(tabname, backExcelPath, cbk);
+          },
           function(cbk) {
             connection.query("truncate table " + tabname, function(err) {
               if (err) {
@@ -162,7 +176,9 @@ var importExcel = function() {
               valArr = [];
               for (i = 0; i < keyLen; i++) {
                 if (data[i]) {
-                  valArr.push(data[i].value);
+                  valArr.push(data[i].value === null ? '' : data[i].value);
+                } else {
+                  valArr.push('');
                 }
               }
               var field = "`" + keyArr.join('`,`') + "`";
@@ -218,7 +234,7 @@ var exportExcel = function() {
     }, function (tbls, cb) {
       async.each(tbls, function(tbl, callback) {
         var tblName = tbl.TABLE_NAME;
-        if (prefix && tblName.indexOf(prefix) !== 0) {
+        if (tabPre && tblName.indexOf(tabPre) !== 0) {
           callback(null);
           return;
         }
@@ -227,59 +243,7 @@ var exportExcel = function() {
           callback(null);
           return;
         }
-
-        var sqlArr = [
-          "select COLUMN_NAME,COLUMN_COMMENT from information_schema.columns where" +
-            " table_schema='" + dbname + "' and table_name='" + tblName + "' order by ORDINAL_POSITION asc",
-          "select * from " + tblName
-        ];
-        async.map(sqlArr, function(sql, ncb) {
-          connection.query(sql, function(err, rows) {
-            if (err) {
-              msg(1, sql);
-              ncb(err);
-              return;
-            }
-            ncb(null, rows);
-          });
-        }, function(err, results) {
-          if (err) {
-            callback(err);
-            return;
-          }
-          var fieldArr = results[0];
-          var fieldLen = fieldArr.length;
-          var xlsxArr = [], fields = [], comments = [];
-          for (var i = 0; i < fieldLen; i++) {
-            comments.push(fieldArr[i].COLUMN_COMMENT);
-            fields.push(fieldArr[i].COLUMN_NAME);
-          }
-          xlsxArr.push(comments);
-          xlsxArr.push(fields);
-          var dataArr = results[1];
-          var dataLen = dataArr.length;
-          var data;
-          for (var j = 0; j < dataLen; j++) {
-            data = [];
-            for (var k = 0; k < fieldLen; k++) {
-              data.push({"value": dataArr[j][fields[k]] !== null ? dataArr[j][fields[k]] : '', "formatCode": "General"});
-            }
-            xlsxArr.push(data);
-          }
-          var obj = {"worksheets": [
-            {"data": xlsxArr}
-          ]};
-          try {
-            var file = xlsx.build(obj);
-            fs.writeFileSync(path.join(excel, tblName + '.xlsx'), file, 'binary');
-          } catch (e) {
-            msg(1, tblName);
-            callback(e);
-            return;
-          }
-
-          callback(null);
-        });
+        exportSingleExcel(tblName, excel, callback);
       }, cb);
     }
   ], function(err) {
@@ -294,9 +258,90 @@ var exportExcel = function() {
   });
 };
 
+/**
+ * 导出单个excel文件
+ * @param tableName
+ * @param cb
+ */
+function exportSingleExcel(tableName, excelPath, cb) {
+  var sqlArr = [
+    "select COLUMN_NAME,COLUMN_COMMENT from information_schema.columns where" +
+      " table_schema='" + dbname + "' and table_name='" + tableName + "' order by ORDINAL_POSITION asc",
+    "select * from " + tableName
+  ];
+  async.map(sqlArr, function(sql, ncb) {
+    connection.query(sql, function(err, rows) {
+      if (err) {
+        msg(1, sql);
+        ncb(err);
+        return;
+      }
+      ncb(null, rows);
+    });
+  }, function(err, results) {
+    if (err) {
+      cb(err);
+      return;
+    }
+    var fieldArr = results[0];
+    var fieldLen = fieldArr.length;
+    var xlsxArr = [], fields = [], comments = [];
+    for (var i = 0; i < fieldLen; i++) {
+      comments.push(fieldArr[i].COLUMN_COMMENT);
+      fields.push(fieldArr[i].COLUMN_NAME);
+    }
+    xlsxArr.push(comments);
+    xlsxArr.push(fields);
+    var dataArr = results[1];
+    var dataLen = dataArr.length;
+    var data;
+    for (var j = 0; j < dataLen; j++) {
+      data = [];
+      for (var k = 0; k < fieldLen; k++) {
+        data.push({"value": dataArr[j][fields[k]] !== null ? dataArr[j][fields[k]] : '', "formatCode": "General"});
+      }
+      xlsxArr.push(data);
+    }
+    var obj = {"worksheets": [
+      {"data": xlsxArr}
+    ]};
+    try {
+      var file = xlsx.build(obj);
+      fs.writeFileSync(path.join(excelPath, tableName + '.xlsx'), file, 'binary');
+    } catch (e) {
+      msg(1, tableName);
+      cb(e);
+      return;
+    }
+
+    cb(null);
+  });
+}
+
+function dateFormat(date, format) {
+  var o = {
+    "M+": date.getMonth() + 1, //月份
+    "d+": date.getDate(), //日
+    "h+": date.getHours(), //小时
+    "m+": date.getMinutes(), //分
+    "s+": date.getSeconds(), //秒
+    "q+": Math.floor((date.getMonth() + 3) / 3), //季度
+    "S": date.getMilliseconds() //毫秒
+  };
+  if (/(y+)/.test(format)) {
+    format = format.replace(RegExp.$1, (date.getFullYear() + "").substr(4 - RegExp.$1.length));
+  }
+  for (var k in o) {
+    if (new RegExp("(" + k + ")").test(format)) {
+      format = format.replace(RegExp.$1, (RegExp.$1.length === 1) ? (o[k]) : (("00" + o[k]).substr(("" + o[k]).length)));
+    }
+  }
+  return format;
+}
+
 
 function updateTab() {
-  if (!checkInput(true)) {
+  if (!checkInput({excel: true})) {
     return false;
   }
 
@@ -322,7 +367,7 @@ function updateTab() {
     function (tbls, cb) {
       async.each(tbls, function(tbl, callback) {
         var tblName = tbl.TABLE_NAME;
-        if (prefix && tblName.indexOf(prefix) !== 0) {
+        if (tabPre && tblName.indexOf(tabPre) !== 0) {
           callback(null);
           return;
         }
@@ -365,7 +410,9 @@ $(document).ready(function(){
     $('#user').val(config.user);
     $('#passwd').val(config.passwd);
     $('#dbname').val(config.dbname);
-    prefix = config.prefix;
+    tabPre = config.prefix;
+    dbPre = config.dbPre;
+    //updateDb();
     updateTab();
   }
 
