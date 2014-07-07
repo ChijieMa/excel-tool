@@ -132,6 +132,7 @@ var importExcel = function() {
         }
         var lid = file.lastIndexOf('.');
         if (lid <= 0 || file.substring(lid + 1) !== 'xlsx') {
+          callback(null);
           return;
         }
         var tabname = file.substring(0, lid);
@@ -177,13 +178,13 @@ var importExcel = function() {
               for (i = 0; i < keyLen; i++) {
                 if (data[i]) {
                   var t = isNull(data[i].value) ? '' : data[i].value;
-                  valArr.push(t);
+                  valArr.push(mysql.escape(t));
                 } else {
                   valArr.push('');
                 }
               }
               var field = "`" + keyArr.join('`,`') + "`";
-              var val = "'" + valArr.join("','") + "'";
+              var val = valArr.join(",");
               var sql = "insert into " + tabname + "(" + field + ") values(" + val + ")";
               connection.query(sql, function(err) {
                 if (err) {
@@ -314,7 +315,6 @@ function exportSingleExcel(tableName, excelPath, cb) {
       cb(e);
       return;
     }
-
     cb(null);
   });
 }
