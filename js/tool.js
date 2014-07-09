@@ -180,7 +180,7 @@ var importExcel = function() {
                   var t = isNull(data[i].value) ? '' : data[i].value;
                   valArr.push(mysql.escape(t));
                 } else {
-                  valArr.push('');
+                  valArr.push(mysql.escape(''));
                 }
               }
               var field = "`" + keyArr.join('`,`') + "`";
@@ -188,6 +188,8 @@ var importExcel = function() {
               var sql = "insert into " + tabname + "(" + field + ") values(" + val + ")";
               connection.query(sql, function(err) {
                 if (err) {
+                  msg(1, JSON.stringify(data));
+                  msg(1, JSON.stringify(valArr));
                   msg(1, sql);
                   callbk(err);
                   return;
