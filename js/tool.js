@@ -397,6 +397,17 @@ function updateTab() {
   });
 }
 
+/**
+ * 清除选中
+ */
+function clearSelect() {
+  $("#tbs :checkbox").each(function() {
+    if ($(this).is(":checked")) {
+      $(this).attr("checked", false);
+    }
+  });
+}
+
 $(document).ready(function(){
   $("#closeButton").mouseover(function() {
     $(this).attr("src","./img/close_hover.png");
